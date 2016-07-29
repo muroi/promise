@@ -2,8 +2,11 @@
 
 ## Prerequisites
 
-Make sure that nova scheduler type is *filterscheduler* and filter configuration
-has host----filter.
+Make sure that scheduler_driver is *filter_scheduler* and scheduler_defualt_filters
+has AggregateInstanceExtraSpecsFilter in nova.conf.
+
+* packages
+  This needs python-pbr packages for install.
 
 ## Install
 
