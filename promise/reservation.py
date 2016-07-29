@@ -108,7 +108,7 @@ class ReserveInstances(show.ShowOne):
         reserved_aggregate = self.nova_client.aggregates.create(aggregate_name,
                                                                 parsed_args.az)
         metadata = {
-            'reservation': str(reserved_flavor.id)
+            RESERVATION_META_DATA: str(reserved_flavor.id)
             }
         self.nova_client.aggregates.set_metadata(reserved_aggregate, metadata)
 
