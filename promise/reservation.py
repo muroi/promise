@@ -60,7 +60,7 @@ class ReserveInstances(show.ShowOne):
 
         hypervisors = [h for h in self.nova_client.hypervisors.list(detailed=True)
                        if (h.service['host'] in candidates and
-                           not (h.state == 'down' or h.status == 'disable'))]
+                           not (h.state == 'down' or h.status == 'disabled'))]
         result = []
         reserved = 0
         # choose hypervisor with greedy algorithm
