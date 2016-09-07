@@ -44,22 +44,14 @@ class FinishReservation(command.Command):
 
         flavor_id = parsed_args.reservation_id
         aggregate_name = flavor_id + reservation.RESERVATION_META_DATA
-        aggregate = [aggre for aggre in self.nova_client.aggregates.list()
-                     if aggre.name == aggregate_name]
-
-        if not aggregate:
-            msg = "reservation id %s isn't defined" % flavor_id
-            LOG.debug(msg)
-            raise Exception(msg)
-
-        aggregate = aggregate[0]
+        aggregate = utils.get_aggregate_from_name(self.nova_client,
+                                                  aggregate_name)
         reserved_hosts = aggregate.hosts
 
         # get rid of flavor access from the project
-        accesses= self.nova_client.flavor_access.list(flavor=flavor_id)
+        accesses = self.nova_client.flavor_access.list(flavor=flavor_id)
         self.nova_client.flavor_access.remove_tenant_access(flavor_id,
                                                             accesses[0].tenant_id)
-
         if not parsed_args.keep_reserved_instances:
             reserved_servers = []
             for h in reserved_hosts:
@@ -79,7 +71,13 @@ class FinishReservation(command.Command):
         LOG.debug('delete flavor %s and host aggregate %s' %
                   (flavor_id, aggregate))
         self.nova_client.flavors.delete(flavor_id)
+
+        original_aggregate = (utils.get_aggregate_from_name(
+            self.nova_client, aggregate.metadata.get('original-aggregate', None)))
+
         for h in reserved_hosts:
+            if original_aggregate:
+                original_aggregate.add_host(h)
             aggregate.remove_host(h)
         aggregate.delete()
 

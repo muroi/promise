@@ -71,3 +71,16 @@ def get_keystone_openstack_client(auth_args):
     return ks_client
 
 
+def get_aggregate_from_name(client, name):
+    if not name:
+        return None
+
+    aggre = [aggre for aggre in client.aggregates.list()
+             if aggre.name == name]
+
+    if not aggre:
+        msg = "specified aggregate: %s is not defined" % name
+        LOG.debug(msg)
+        raise Exception(msg)
+
+    return aggre[0]

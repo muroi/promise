@@ -24,6 +24,9 @@ class ReserveInstances(show.ShowOne):
     def get_parser(self, prog_name):
         parser = super(ReserveInstances, self).get_parser(prog_name)
         parser.add_argument(
+            '--aggregate-name', default=None,
+            type=str, help='aggregation name')
+        parser.add_argument(
             'name', metavar='<name>',
             help='name for the flavor')
         parser.add_argument(
@@ -44,10 +47,19 @@ class ReserveInstances(show.ShowOne):
         parser = utils.append_openstack_argument(parser)
         return parser
 
-    def choose_unused_host(self, az, flavor, number, aggregate=None):
+    def choose_unused_host(self, az, flavor, number, aggregate):
         if aggregate:
-            candidates = self.nova_client.aggregates.get(aggregate).hosts
+            # choose unused hosts from a specific aggregation
+            if (hasattr(aggregate, 'metadata') and
+                RESERVATION_META_DATA in aggregate.metadata):
+                msg = ("specified aggregate: %s is used for reservation %s" %
+                       (aggregate.name, aggregate.metadata[RESERVATION_META_DATA]))
+                LOG.debug(msg)
+                raise Exception(msg)
+
+            candidates = aggregate.hosts
         else:
+            # choose unused hosts from non-aggregated hosts
             aggregated_host = []
             for h in self.nova_client.aggregates.list():
                 aggregated_host.extend(h.hosts)
@@ -78,7 +90,7 @@ class ReserveInstances(show.ShowOne):
                 return result
 
         raise Exception("The reservation request is over capacity.")
-            
+
     def take_action(self, parsed_args):
         auth_args = {
             'auth_url': parsed_args.auth_url,
@@ -110,15 +122,24 @@ class ReserveInstances(show.ShowOne):
         metadata = {
             RESERVATION_META_DATA: str(reserved_flavor.id)
             }
+
+        original_aggre = utils.get_aggregate_from_name(self.nova_client,
+                                                       parsed_args.aggregate_name)
+        if original_aggre:
+            metadata['original-aggregate'] = original_aggre.name
+
         self.nova_client.aggregates.set_metadata(reserved_aggregate, metadata)
 
         available_hosts = self.choose_unused_host(parsed_args.az,
                                                   reserved_flavor,
-                                                  int(parsed_args.instance_number))
+                                                  int(parsed_args.instance_number),
+                                                  original_aggre)
         LOG.debug('available hosts: %s' % available_hosts)
 
         for h in available_hosts:
             self.nova_client.aggregates.add_host(reserved_aggregate, h)
+            if original_aggre:
+                original_aggre.remove_host(h)
 
         columns = ('reservation id', 'aggregate id', 'hosts')
         data = (reserved_flavor.id, reserved_aggregate.id, reserved_aggregate.hosts)
